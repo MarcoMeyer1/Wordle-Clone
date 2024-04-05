@@ -1,5 +1,6 @@
 package com.example.wordleclone
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import android.widget.EditText
@@ -8,7 +9,9 @@ import android.text.Editable
 import android.widget.Button
 import android.widget.Toast
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.util.Log
+import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -24,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private var currentWord: String = ""
     private var currentAttempt: Int = 1
     private lateinit var editTexts: Array<Array<EditText>>
+    private lateinit var allGuessRows: Array<Array<EditText>>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,7 +38,6 @@ class MainActivity : AppCompatActivity() {
             .baseUrl("https://wordlecloneapi.azurewebsites.net/api/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-
         wordleApiService = retrofit.create(WordleApiService::class.java)
 
         // Load the correct word from the API and populate it into the TextView
@@ -43,9 +46,6 @@ class MainActivity : AppCompatActivity() {
         // Initialize the EditTexts for the guesses
         initializeEditTexts()
 
-        // Log statement to check if editTexts is initialized
-        Log.d("MainActivity", "editTexts initialized: ${::editTexts.isInitialized}")
-
         // Set up the Enter button to submit a guess
         val btnEnter: Button = findViewById(R.id.btnEnter)
         btnEnter.setOnClickListener {
@@ -53,113 +53,106 @@ class MainActivity : AppCompatActivity() {
             if (enteredWord.length == 5) {
                 checkWord(enteredWord)
             } else {
-                Toast.makeText(this, "Enter a 5-letter word", Toast.LENGTH_SHORT).show()
+
             }
         }
     }
 
 
 
+
+
+
+    // This method sets up all EditTexts and assigns TextWatchers to them.
     private fun initializeEditTexts() {
-        // Initialize each EditText individually
-        editTexts = Array(6) { row ->
-            when (row) {
-                0 -> arrayOf(
-                    findViewById(R.id.txtR1Letter1),
-                    findViewById(R.id.txtR1Letter2),
-                    findViewById(R.id.txtR1Letter3),
-                    findViewById(R.id.txtR1Letter4),
-                    findViewById(R.id.txtR1Letter5)
-                )
-                1 -> arrayOf(
-                    findViewById(R.id.txtR2Letter1),
-                    findViewById(R.id.txtR2Letter2),
-                    findViewById(R.id.txtR2Letter3),
-                    findViewById(R.id.txtR2Letter4),
-                    findViewById(R.id.txtR2Letter5)
-                )
-                2 -> arrayOf(
-                    findViewById(R.id.txtR3Letter1),
-                    findViewById(R.id.txtR3Letter2),
-                    findViewById(R.id.txtR3Letter3),
-                    findViewById(R.id.txtR3Letter4),
-                    findViewById(R.id.txtR3Letter5)
-                )
-                3 -> arrayOf(
-                    findViewById(R.id.txtR4Letter1),
-                    findViewById(R.id.txtR4Letter2),
-                    findViewById(R.id.txtR4Letter3),
-                    findViewById(R.id.txtR4Letter4),
-                    findViewById(R.id.txtR4Letter5)
-                )
-                4 -> arrayOf(
-                    findViewById(R.id.txtR5Letter1),
-                    findViewById(R.id.txtR5Letter2),
-                    findViewById(R.id.txtR5Letter3),
-                    findViewById(R.id.txtR5Letter4),
-                    findViewById(R.id.txtR5Letter5)
-                )
-                5 -> arrayOf(
-                    findViewById(R.id.txtR6Letter1),
-                    findViewById(R.id.txtR6Letter2),
-                    findViewById(R.id.txtR6Letter3),
-                    findViewById(R.id.txtR6Letter4),
-                    findViewById(R.id.txtR6Letter5)
-                )
-                else -> arrayOf()
+        allGuessRows = Array(6) { row ->
+            Array(5) { col ->
+                val editTextId = resources.getIdentifier("txtR${row + 1}Letter${col + 1}", "id", packageName)
+                findViewById<EditText>(editTextId).apply {
+                    imeOptions = if (col < 4) EditorInfo.IME_ACTION_NEXT else EditorInfo.IME_ACTION_DONE
+                    addTextChangedListener(GuessTextWatcher(this, row, col))
+                }
             }
         }
-
-        // Set up the text change listeners
-        for (row in editTexts.indices) {
-            for (col in editTexts[row].indices) {
-                val editText = editTexts[row][col]
-                val nextEditText = if (col < editTexts[row].size - 1) editTexts[row][col + 1] else null
-                editText.addTextChangedListener(GuessTextWatcher(editText, nextEditText))
-            }
-        }
-
-        // Set focus on the first EditText
-        editTexts[0][0].requestFocus()
     }
 
 
+    inner class GuessTextWatcher(private val currentEditText: EditText, private val currentRow: Int, private val currentCol: Int) : TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+        override fun afterTextChanged(s: Editable?) {
+            // Check if the change is because of the user typing in this particular box
+            if (currentRow == currentAttempt - 1 && s != null) {
+                if (s.isNotEmpty() && currentCol < 4) {
+                    // Advance to the next box if there is a next box in the row
+                    allGuessRows[currentRow][currentCol + 1].requestFocus()
+                }
+            }
+        }
+    }
 
     private fun getCurrentGuess(): String {
-        return editTexts[0].joinToString("") { it.text.toString().trim() }
+        return allGuessRows[currentAttempt].joinToString("") { it.text.toString().trim() }
     }
+
 
     private fun checkWord(guess: String) {
+        // Check the guess with your logic
         if (guess == currentWord) {
-            // Guessed word matches the correct word
-            val toastMessage = "Correct guess!"
-            Toast.makeText(this@MainActivity, toastMessage, Toast.LENGTH_SHORT).show()
-
-            // Update UI to reflect correct guess
-            for (i in 0 until 5) {
-                val editText = editTexts[currentAttempt - 1][i]
-                editText.setText(guess[i].toString())
-                editText.setBackgroundColor(Color.GREEN)
-            }
+            Toast.makeText(this, "Correct!", Toast.LENGTH_SHORT).show()
         } else {
-            // Guessed word does not match the correct word
-            val toastMessage = "Wrong! Try again."
-            Toast.makeText(this@MainActivity, toastMessage, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Try again!", Toast.LENGTH_SHORT).show()
         }
 
-        // Move the guesses down one row if applicable
-        if (currentAttempt < 6) {
-            for (i in 0 until 5) {
-                editTexts[currentAttempt][i].text = editTexts[currentAttempt - 1][i].text
-                editTexts[currentAttempt][i].setBackgroundColor(editTexts[currentAttempt - 1][i].solidColor)
-            }
-            // Clear the first row for the next input
-            editTexts[0].forEach { it.text.clear() }
-            editTexts[0][0].requestFocus()
-        }
+        allGuessRows[currentAttempt - 1].forEach { it.isEnabled = false }
 
+        // Move to the next attempt if available
         currentAttempt++
+        if (currentAttempt <= 6) {
+            prepareNextAttempt()
+        } else {
+            // No more attempts left
+            Toast.makeText(this, "No more attempts left!", Toast.LENGTH_SHORT).show()
+        }
     }
+    private fun lockCurrentRow() {
+        // Disable the current row to prevent further edits
+        allGuessRows[currentAttempt].forEach { it.isEnabled = false }
+    }
+
+    private fun updateCurrentAttemptUI(guess: String) {
+        for (i in 0 until 5) {
+            val currentEditText = allGuessRows[currentAttempt - 1][i]
+            currentEditText.setText(guess[i].toString())
+            // Update background color based on the feedback
+            // Use the actual game's logic to set the correct color
+            currentEditText.setBackgroundColor(Color.GRAY)
+        }
+    }
+
+    @SuppressLint("UseCompatLoadingForDrawables")
+    private fun prepareNextAttempt() {
+        if (currentAttempt <= 6) {
+            // Clear any old listeners (important if the game restarts without restarting the activity)
+            allGuessRows[currentAttempt - 1].forEach { editText ->
+                editText.text.clear()
+                editText.isEnabled = true
+                editText.background = resources.getDrawable(android.R.drawable.edit_text)
+            }
+
+            // Request focus on the first EditText of the new current attempt
+            allGuessRows[currentAttempt - 1][0].requestFocus()
+        }
+    }
+
+    private fun clearTopRow() {
+        // Clear the first row for the next input
+        allGuessRows[0].forEach { it.text.clear() }
+        allGuessRows[0][0].requestFocus()
+    }
+
 
 
 
@@ -200,15 +193,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    inner class GuessTextWatcher(private val currentEditText: EditText, private val nextEditText: EditText?) : TextWatcher {
-        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        override fun afterTextChanged(s: Editable?) {
-            if (s != null && s.length == 1 && nextEditText != null) {
-                nextEditText.requestFocus()
-            }
-        }
-    }
+
 
 
     private interface WordleApiService {
